@@ -5,7 +5,7 @@ import numpy as np
 
 class MetricsData:
 
-    def __init__(self, input_data: object, data_label: str, label_classes: list, true_val):
+    def __init__(self, input_data: pd.DataFrame, data_label: str, label_classes: list, true_val):
         self.input_data = input_data
         self.data_label = data_label
         self.label_classes = label_classes
@@ -169,15 +169,15 @@ class MetricsData:
                 distribution_sum += woe_iv_data['Distribution_' + str(self.label_classes[label_class])]
 
             woe_iv_data['WoE_' + str(self.true_val)] = round(np.log(
-                    woe_iv_data['Distribution_' + str(self.label_classes[0])] /
-                    (distribution_sum - woe_iv_data['Distribution_' + str(self.label_classes[0])])), 3)
+                woe_iv_data['Distribution_' + str(self.label_classes[0])] /
+                (distribution_sum - woe_iv_data['Distribution_' + str(self.label_classes[0])])), 3)
             woe_iv_data = woe_iv_data.replace(
-                    {'WoE ' + str(self.label_classes[0]): {np.inf: 0, -np.inf: 0}})
+                {'WoE_' + str(self.true_val): {np.inf: 0, -np.inf: 0, np.nan: 0}})
 
             woe_iv_data['IV_' + str(self.true_val)] = round(
-                    woe_iv_data['WoE_' + str(self.true_val)] *
-                    (woe_iv_data['Distribution_' + str(self.label_classes[0])] - (
-                            distribution_sum - woe_iv_data['Distribution_' + str(self.label_classes[0])])), 3)
+                woe_iv_data['WoE_' + str(self.true_val)] *
+                (woe_iv_data['Distribution_' + str(self.label_classes[0])] - (
+                        distribution_sum - woe_iv_data['Distribution_' + str(self.label_classes[0])])), 3)
 
             woe_iv_data = woe_iv_data.sort_values(by=['Variable', 'Value'], ascending=[True, True])
             woe_iv_data.index = range(len(woe_iv_data.index))
@@ -208,7 +208,8 @@ class MetricsData:
         precision_recall_f1_data = self.get_precision_recall_f1(data_feature)
         woe_iv_data = self.get_woe_iv(data_feature)
 
-        feature_report = pd.merge(label_distribution_data, precision_recall_f1_data, on=['Variable', 'Value'] + self.label_classes)
+        feature_report = pd.merge(label_distribution_data, precision_recall_f1_data,
+                                  on=['Variable', 'Value'] + self.label_classes)
         feature_report = pd.merge(feature_report, woe_iv_data, on=['Variable', 'Value'] + self.label_classes)
 
         return feature_report
@@ -264,11 +265,84 @@ class MetricsData:
                 feature_conclusion['f1'] = str(None)
 
             feature_conclusion['WoE_' + str(self.true_val)] = str(round(
-                    data['WoE_' + str(self.true_val)].sum(), 3))
+                data['WoE_' + str(self.true_val)].sum(), 3))
             feature_conclusion['IV_' + str(self.true_val)] = str(round(
-                    data['IV_' + str(self.true_val)].sum(), 3))
+                data['IV_' + str(self.true_val)].sum(), 3))
 
             return feature_conclusion
 
         else:
             raise ValueError("given label classes are inconsistent with the data")
+
+
+class MetricsBooleanData:
+
+    def __init__(self, data: pd.DataFrame, data_label: str, label_classes: list, preferred_value: str,
+                 value_classes: list):
+        self.data = data
+        self.data_label = data_label
+        self.label_classes = label_classes
+        self.preferred_value = preferred_value
+        self.value_classes = value_classes
+
+    def get_confusion_matrix(self, data_feature: str):
+
+        data = self.data[self.data[data_feature].isin(self.value_classes)]
+        record = dict()
+        record['Variable'] = str(data_feature)
+        record['Total'] = data.shape[0]
+        for label_class in self.label_classes:
+            record[label_class] = str(data[data[self.data_label] == label_class].shape[0])
+        for value_class in self.value_classes:
+            for label_class in self.label_classes:
+                record[value_class + '_' + label_class] = str(data[(data[self.data_label] == label_class) & (
+                        data[data_feature] == value_class)].shape[0])
+
+        return record
+
+    def get_woe_iv(self, data_feature: str):
+
+        data = self.data[self.data[data_feature].isin(self.value_classes)]
+        record = dict()
+        record['Variable'] = str(data_feature)
+        record['Total'] = data.shape[0]
+
+        for label_class in self.label_classes:
+            record[label_class] = data[data[self.data_label] == label_class].shape[0]
+
+        for value_class in self.value_classes:
+            for label_class in self.label_classes:
+                record[value_class + '_' + label_class] = data[(data[self.data_label] == label_class) & (
+                        data[data_feature] == value_class)].shape[0]
+
+
+        value1_label1 = record[self.value_classes[0] + '_' + self.label_classes[0]]
+        label1 = record[self.label_classes[0]]
+        value1_label2 = record[self.value_classes[0] + '_' + self.label_classes[1]]
+        label2 = record[self.label_classes[1]]
+
+        woe_before_log = ((value1_label1 / value1_label2) / (label1 / label2))
+
+        record['WoE' + '_' + str(self.value_classes[0])] = round(np.log(woe_before_log), 3)
+        iv = ((value1_label1 / label1) - (value1_label2 / label2)) * record['WoE' + '_' + str(self.value_classes[0])]
+        record['IV' + '_' + str(self.value_classes[0])] = round(iv, 3)
+
+
+
+        value1_label1 = record[self.value_classes[1] + '_' + self.label_classes[1]]
+        label1 = record[self.label_classes[1]]
+        value1_label2 = record[self.value_classes[1] + '_' + self.label_classes[0]]
+        label2 = record[self.label_classes[0]]
+
+        woe_before_log = ((value1_label1 / value1_label2) / (label1 / label2))
+
+        record['WoE' + '_' + str(self.value_classes[1])] = round(np.log(woe_before_log), 3)
+        iv = ((value1_label1 / label1) - (value1_label2 / label2)) * record['WoE' + '_' + str(self.value_classes[1])]
+        record['IV' + '_' + str(self.value_classes[1])] = round(iv, 3)
+
+        record['IV'] = round(record['IV' + '_' + str(self.value_classes[0])] + record['IV' + '_' + str(self.value_classes[1])], 3)
+
+        for key, value in record.items():
+            record[key] = str(value)
+
+        return record

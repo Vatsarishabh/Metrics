@@ -1,1 +1,1 @@
-from CategoricalMetrics.CategoricalMetrics import MetricsData
+from Metrics.Metrics.CategoricalMetrics import MetricsData

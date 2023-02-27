@@ -1,4 +1,5 @@
 import statistics
+import warnings
 import pandas as pd
 import numpy as np
 
@@ -276,6 +277,12 @@ class MetricsData:
 
 
 class MetricsBooleanData:
+    """
+    :Attributes  data_label: column which is treated as label
+            label_classes: list of possible value of classes
+            preferred_value: value of boolean data preferred for calculation
+            value_classes: list of boolean values of column
+    """
 
     def __init__(self, data: pd.DataFrame, data_label: str, label_classes: list, preferred_value: str,
                  value_classes: list):
@@ -321,11 +328,21 @@ class MetricsBooleanData:
         value1_label2 = record[self.value_classes[0] + '_' + self.label_classes[1]]
         label2 = record[self.label_classes[1]]
 
-        woe_before_log = ((value1_label1 / value1_label2) / (label1 / label2))
+        try:
+            woe_before_log = ((value1_label1 / value1_label2) / (label1 / label2))
+        except ZeroDivisionError:
+            warnings.warn("Zero Division error in WoE_begore_log")
+            woe_before_log = 0
+
 
         record['WoE' + '_' + str(self.value_classes[0])] = round(np.log(woe_before_log), 3)
-        iv = ((value1_label1 / label1) - (value1_label2 / label2)) * record['WoE' + '_' + str(self.value_classes[0])]
-        record['IV' + '_' + str(self.value_classes[0])] = round(iv, 3)
+        try:
+            iv = ((value1_label1 / label1) - (value1_label2 / label2)) * record['WoE' + '_' + str(self.value_classes[0])]
+            record['IV' + '_' + str(self.value_classes[0])] = round(iv, 3)
+        except ZeroDivisionError:
+            warnings.warn("Zero Division error in iv")
+            iv = 0
+            record['IV' + '_' + str(self.value_classes[0])] = round(iv, 3)
 
 
 
@@ -334,11 +351,21 @@ class MetricsBooleanData:
         value1_label2 = record[self.value_classes[1] + '_' + self.label_classes[0]]
         label2 = record[self.label_classes[0]]
 
-        woe_before_log = ((value1_label1 / value1_label2) / (label1 / label2))
+        try:
+            woe_before_log = ((value1_label1 / value1_label2) / (label1 / label2))
+        except ZeroDivisionError:
+            warnings.warn("Zero Division error in WoE_begore_log")
+            woe_before_log = 0
 
         record['WoE' + '_' + str(self.value_classes[1])] = round(np.log(woe_before_log), 3)
-        iv = ((value1_label1 / label1) - (value1_label2 / label2)) * record['WoE' + '_' + str(self.value_classes[1])]
-        record['IV' + '_' + str(self.value_classes[1])] = round(iv, 3)
+        try:
+            iv = ((value1_label1 / label1) - (value1_label2 / label2)) * record[
+                'WoE' + '_' + str(self.value_classes[1])]
+            record['IV' + '_' + str(self.value_classes[1])] = round(iv, 3)
+        except ZeroDivisionError:
+            warnings.warn("Zero Division error in iv")
+            iv = 0
+            record['IV' + '_' + str(self.value_classes[1])] = round(iv, 3)
 
         record['IV'] = round(record['IV' + '_' + str(self.value_classes[0])] + record['IV' + '_' + str(self.value_classes[1])], 3)
 
